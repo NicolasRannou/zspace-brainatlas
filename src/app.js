@@ -1,7 +1,7 @@
 //license. By downloading these data, you agree to acknowledge our contribution in any of your publications that 
 // result form the use of this atlas. Please acknowledge the following grants: P41 RR013218, R01 MH050740.
 
-let ready = true;
+let zSpaceReady = true;
 let fixed = false;
 let clipping = true;
 
@@ -112,6 +112,10 @@ renderer.setPixelRatio(window.devicePixelRatio);
 renderer.localClippingEnabled = clipping;
 container.appendChild(renderer.domElement);
 
+const effect = new THREE.ZSpaceEffect(renderer);
+effect.setSize(container.offsetWidth, container.offsetHeight);
+effect.setViewerScale(1000.0);
+
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
@@ -132,10 +136,6 @@ const light = new THREE.DirectionalLight( 0xffffff, 1 );
 light.position.copy( camera.position );
 scene.add(light);
 
-const effect = new THREE.ZSpaceEffect(renderer);
-effect.setSize(container.clientWidth, container.clientHeight);
-effect.setViewerScale(1000.0);
-
 // clip plane!
 const geometry = new THREE.PlaneGeometry( 300, 300, 32 );
 const material = new THREE.MeshBasicMaterial( {
@@ -144,7 +144,6 @@ const material = new THREE.MeshBasicMaterial( {
     transparent: true,
     opacity: 0.1,} );
 const plane = new THREE.Mesh( geometry, material );
-console.log(plane);
 scene.add(plane);
 const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
 
@@ -165,9 +164,11 @@ function animate() {
   plane.getWorldDirection(vector);
   clipPlane.set(vector);
 
-  if(ready) {
+  if(!zSpaceReady) {
     //effect.render(scene, camera);
     renderer.render(scene, camera);
+  } else {
+    effect.render( scene, camera );
   }
 
   // request new frame
