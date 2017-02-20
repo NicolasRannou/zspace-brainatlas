@@ -1,7 +1,20 @@
 //license. By downloading these data, you agree to acknowledge our contribution in any of your publications that 
 // result form the use of this atlas. Please acknowledge the following grants: P41 RR013218, R01 MH050740.
 
-let zSpaceReady = true;
+let zSpaceReady = false;
+if (navigator.getVRDisplays) {
+    navigator.getVRDisplays().then(function (displays) {
+        if (displays.length > 0) {
+            var i;
+            for (i = 0; i < displays.length; i++) {
+                if (displays[i].displayName == "ZSpace Display") {
+                    zSpaceReady = true;
+                }
+            }
+        }
+    });
+}
+
 let fixed = false;
 let clipping = true;
 
