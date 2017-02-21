@@ -227,9 +227,9 @@ function loader(object) {
     });
 }
 
-data.forEach(function(object, key) {
-  loader(object);
-});
+//data.forEach(function(object, key) {
+//  loader(object);
+//});
 
 let object = data['adi'] = {
         location: 'https://cdn.rawgit.com/FNNDSC/data/master/stl/adi_brain/WM.stl',
