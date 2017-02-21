@@ -199,12 +199,13 @@ function animate() {
 	.applyMatrix4(plane.matrixWorld);
   clipPlane.setFromNormalAndCoplanarPoint(normal, coplanar);
 
-  if(!zSpaceReady) {
-    //effect.render(scene, camera);
-    renderer.render(scene, camera);
-  } else {
-    effect.render( scene, camera );
-  }
+  //if(ready) {
+    effect.render(scene, camera);
+    //renderer.render(scene, camera);
+  //}
+//  else {
+ //   effect.render( scene, camera );
+ // }
 
   // request new frame
   requestAnimationFrame(function() {
