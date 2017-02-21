@@ -2,21 +2,10 @@
 // result form the use of this atlas. Please acknowledge the following grants: P41 RR013218, R01 MH050740.
 
 let zSpaceReady = true;
-// if (navigator.getVRDisplays) {
-//     navigator.getVRDisplays().then(function (displays) {
-//         if (displays.length > 0) {
-//             var i;
-//             for (i = 0; i < displays.length; i++) {
-//                 if (displays[i].displayName == "ZSpace Display") {
-//                     zSpaceReady = true;
-//                 }
-//             }
-//         }
-//     });
-// }
-
-let fixed = false;
+let fixed = true;
 let clipping = true;
+
+// overwritte raycast to work on multmaterial
 
 let dataInfo = [
     ['amygdaloid_body_L', {
@@ -133,10 +122,10 @@ const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
     45, container.offsetWidth / container.offsetHeight, 0.1, 100000);
-camera.position.x = 150;
-camera.position.y = 400;
-camera.position.z = -350;
-camera.up.set(-0.42, 0.86, 0.26);
+camera.position.x = -432;
+camera.position.y = 488;
+camera.position.z = 317;
+camera.up.set(0.4282, -0.3174, 0.8362);
 
 const controls = new THREE.TrackballControls(camera, container);
 controls.rotateSpeed = 5.5;
@@ -151,14 +140,38 @@ scene.add(light);
 
 // clip plane!
 const geometry = new THREE.PlaneGeometry( 300, 300, 32 );
-const material = new THREE.MeshBasicMaterial( {
+for (var i = 0, len = geometry.faces.length; i < len; i++) {
+    var face = geometry.faces[i].clone();
+    face.materialIndex = 1;
+    geometry.faces.push(face);
+    geometry.faceVertexUvs[0].push(geometry.faceVertexUvs[0][i].slice(0));
+}
+const materialFront = new THREE.MeshBasicMaterial( {
     color: 0xffffff,
-    side: THREE.DoubleSide,
+    side: THREE.FrontSide,
     transparent: true,
-    opacity: 0.1,} );
+    opacity: 0.6,} );
+const materialBack = new THREE.MeshBasicMaterial( {
+    color: 0xffffff,
+    side: THREE.BackSide,
+    transparent: true,
+    opacity: 0.2,} );
+const material = new THREE.MultiMaterial([materialFront, materialBack]);
 const plane = new THREE.Mesh( geometry, material );
+plane.position.z = -10;
 scene.add(plane);
 const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+
+// callbacks
+function onWindowResize(){
+  camera.aspect = container.offsetWidth / container.offsetHeight;
+  camera.updateProjectionMatrix();
+  
+  effect.setSize(container.offsetWidth, container.offsetHeight);
+}
+
+window.addEventListener('resize', onWindowResize);
+
 
 // start rendering loop
 function animate() {
@@ -173,9 +186,12 @@ function animate() {
   }
 
   // update clip plane
-  var vector = new THREE.Vector3();
-  plane.getWorldDirection(vector);
-  clipPlane.set(vector);
+  var normal = new THREE.Vector3();
+  plane.getWorldDirection(normal);
+  let coplanar =
+    plane.geometry.vertices[0].clone()
+	.applyMatrix4(plane.matrixWorld);
+  clipPlane.setFromNormalAndCoplanarPoint(normal, coplanar);
 
   if(!zSpaceReady) {
     //effect.render(scene, camera);
@@ -198,6 +214,8 @@ function loader(object) {
         object.material = new THREE.MeshLambertMaterial({
             color: object.color,
             clippingPlanes: [clipPlane],
+			side: THREE.DoubleSide,
+			shininess: 100,
         });
         const mesh = new THREE.Mesh(geometry, object.material);
         scene.add(mesh);
@@ -216,11 +234,14 @@ let object = data['adi'] = {
         color: 0x234576,
     }
 
+	// test if STL works
 const stlLoader = new THREE.STLLoader();
 stlLoader.load('https://cdn.rawgit.com/FNNDSC/data/master/stl/adi_brain/WM.stl', function(geometry) {
     object.material = new THREE.MeshLambertMaterial({
         color: object.color,
         clippingPlanes: [clipPlane],
+		side: THREE.DoubleSide,
+		shininess: 100,
     });
     const mesh = new THREE.Mesh(geometry, object.material);
     scene.add(mesh);
