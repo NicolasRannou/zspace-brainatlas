@@ -207,3 +207,21 @@ function loader(object) {
 data.forEach(function(object, key) {
   loader(object);
 });
+
+let object = data['adi'] = {
+        location: 'https://cdn.rawgit.com/FNNDSC/data/master/stl/adi_brain/WM.stl',
+        label: 'Amygdaloid Left',
+        loaded: false,
+        material: null,
+        color: 0x234576,
+    }
+
+const stlLoader = new THREE.STLLoader();
+stlLoader.load('https://cdn.rawgit.com/FNNDSC/data/master/stl/adi_brain/WM.stl', function(geometry) {
+    object.material = new THREE.MeshLambertMaterial({
+        color: object.color,
+        clippingPlanes: [clipPlane],
+    });
+    const mesh = new THREE.Mesh(geometry, object.material);
+    scene.add(mesh);
+});
