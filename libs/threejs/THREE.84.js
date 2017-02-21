@@ -19983,11 +19983,11 @@
 				preserveDrawingBuffer: _preserveDrawingBuffer
 			};
 
-			_gl = _context || _canvas.getContext( 'webgl2', attributes ) || _canvas.getContext( 'experimental-webgl', attributes );
+			_gl = _context || _canvas.getContext( 'webgl', attributes ) || _canvas.getContext( 'experimental-webgl', attributes );
 
 			if ( _gl === null ) {
 
-				if ( _canvas.getContext( 'webgl2' ) !== null ) {
+				if ( _canvas.getContext( 'webgl' ) !== null ) {
 
 					throw 'Error creating WebGL context with your selected attributes.';
 

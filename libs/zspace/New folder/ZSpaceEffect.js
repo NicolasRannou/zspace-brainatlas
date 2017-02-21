@@ -12,9 +12,9 @@ THREE.ZSpaceEffect = function ( renderer ) {
 	rightCamera.layers.enable( 2 );
 	rightCamera.matrixAutoUpdate = false;
 	
-	var zspace = new ZSpace(renderer.context, renderer.context.canvas);
+	var zspace = new ZSpace(renderer.context, renderer.context.canvas, window);
 	zspace.zspaceInit();
-	zspace.setCanvasOffset(310, 0);
+	zspace.setCanvasOffset(0, 80);
 
 	var leftViewMatrix = new THREE.Matrix4();
 	var rightViewMatrix = new THREE.Matrix4();
@@ -81,7 +81,7 @@ THREE.ZSpaceEffect = function ( renderer ) {
 	    stylusLength = 0.5 * zspace.viewerScale;
 	    objectHit = null;
 	    for (var i = 0; i < intersects.length; i++) {
-	      if (intersects[i].object != stylusLine) {
+	      if (intersects[i].object != stylusLine && !intersects[i].object.ignoreRaycast) {
 	        stylusLength = intersects[i].distance;
 	        objectHit = intersects[i].object;
 	        hit = true;

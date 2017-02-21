@@ -123,10 +123,10 @@ const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(
     45, container.offsetWidth / container.offsetHeight, 0.1, 100000);
-camera.position.x = -432;
-camera.position.y = 488;
-camera.position.z = 317;
-camera.up.set(0.4282, -0.3174, 0.8362);
+camera.position.x = 589;
+camera.position.y = -344;
+camera.position.z = 302;
+camera.up.set(-0.439, 0.243, 0.855);
 
 const controls = new THREE.TrackballControls(camera, container);
 controls.rotateSpeed = 5.5;
@@ -151,15 +151,17 @@ const materialFront = new THREE.MeshBasicMaterial( {
     color: 0xffffff,
     side: THREE.FrontSide,
     transparent: true,
-    opacity: 0.6,} );
+    opacity: 0.2,} );
 const materialBack = new THREE.MeshBasicMaterial( {
     color: 0xffffff,
     side: THREE.BackSide,
     transparent: true,
-    opacity: 0.2,} );
+    opacity: 0.8,} );
 const material = new THREE.MultiMaterial([materialFront, materialBack]);
 const plane = new THREE.Mesh( geometry, material );
-plane.position.z = -10;
+plane.position.z = 20;
+plane.rotation.x = 1.07;
+plane.rotation.y = 1.07;
 scene.add(plane);
 const clipPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
 
@@ -191,6 +193,7 @@ function animate() {
   // update clip plane
   var normal = new THREE.Vector3();
   plane.getWorldDirection(normal);
+  normal.negate();
   let coplanar =
     plane.geometry.vertices[0].clone()
 	.applyMatrix4(plane.matrixWorld);

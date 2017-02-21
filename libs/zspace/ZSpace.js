@@ -1,30 +1,24 @@
-window.ZSpace = (function () {
+﻿window.ZSpace = (function () {
   "use strict";
 
-  var leftViewDevice = null;
-  var rightViewDevice = null;
-  var leftProjectionDevice = null;
-  var rightProjectionDevice = null;
+  var displayDevice = null;
   var stylusDevice = null;
   var stylusButtonsDevice = null;
-  var swapStereo = false;
-  var stereoEnable = true;
-  var stylusGamepad = null;
-  var canvasOffset = [0, 0];
 
-
-  var zspace = function (gl, canvas, window) {
+  var zspace = function (gl, c) {
     this.gl = gl;
-    this.canvas = canvas;
-    this.window = window;
+    this.canvas = c;
 
-    this.frameBufferTexture = null;
     this.frameBuffer = null;
+    this.renderBuffer = null;
+
     this.frameBufferDepthTexture = null;
+
+    this.swapStereo = false;
 
     this.nearClip = 0.1;
     this.farClip = 10000.0;
-	  this.viewerScale = 1.0;
+    this.viewerScale = 1.0;
 
     this.leftViewMatrix = mat4.create();
     this.rightViewMatrix = mat4.create();
@@ -36,14 +30,24 @@ window.ZSpace = (function () {
     this.currentHeight = 0;
 
     this.buttonPressed = [0, 0, 0];
+
+    this.useExternalTexture = false;
+
+
+    this.stereoEnable = true;
+    this.stylusGamepad = null;
+    this.canvasOffset = [0, 0];
+    this.frameBufferTexture = null;
+    this.presenting = false;
+    this.fullscreen = false;
   }
 
   // Helper function to get an element's exact position
-  function getPosition(canvas) {
+  function getPosition(zspace) {
     var xPos = 0;
     var yPos = 0;
-    xPos = window.screenX + canvas.offsetLeft - screen.availLeft + canvasOffset[0];
-    yPos = window.screenY + canvas.offsetTop + 75 + canvasOffset[1];
+    xPos = window.screenX + zspace.canvas.offsetLeft - screen.availLeft + zspace.canvasOffset[0];
+    yPos = window.screenY + zspace.canvas.offsetTop + 75 + zspace.canvasOffset[1];
 
     return {
       x: xPos,
@@ -51,27 +55,114 @@ window.ZSpace = (function () {
     };
   }
 
-  document.onkeydown = checkKey;
-  function checkKey(e) {
-    e = e || window.event;
+  function keyEvent(e, zspace) {
+    var e = window.event;
 
     if (e.keyCode == '90') {
-      swapStereo = !swapStereo;
+      zspace.swapStereo = !zspace.swapStereo;
     }
 
-    if (e.keyCode == '77') {
-      stereoEnable = !stereoEnable;
+    //if (e.keyCode == '70') {
+    //  zspace.fullscreen = !zspace.fullscreen;
+    //  if (zspace.fullscreen) {
+    //    if (zspace.canvas.webkitRequestFullScreen) {
+    //      zspace.canvas.webkitRequestFullScreen();
+    //    }
+    //  }
+    //}
+
+    //if (e.keyCode == '50') {
+    //  if (zspace.stylusGamepad && zspace.stylusGamepad.haptics && zspace.stylusGamepad.haptics[0]) {
+    //    zspace.stylusGamepad.haptics[0].vibrate(1.0, 0.5);
+    //  }
+    //}
+
+    //if (e.keyCode == '51') {
+    //  if (zspace.stylusGamepad && zspace.stylusGamepad.haptics && zspace.stylusGamepad.haptics[0]) {
+    //    zspace.stylusGamepad.haptics[0].vibrate(1.0, 1.0);
+    //  }
+    //}
+
+    //if (e.keyCode == '77') {
+    //  zspace.stereoEnable = !zspace.stereoEnable;
+    //  if (!zspace.stereoEnable) {
+    //    if (displayDevice != null) {
+    //      displayDevice.requestPresent([{ source: zspace.canvas, rightSource: null }]);
+    //      zspace.presenting = false;
+    //    }
+    //    return;
+    //  } else {
+    //    if (displayDevice != null) {
+    //      displayDevice.requestPresent([{ source: zspace.canvas, rightSource: zspace.frameBufferTexture }]);
+    //      zspace.presenting = true;
+    //    }
+    //  }
+    //}
+
+    //if (e.keyCode == '80') {
+    //  if (!zspace.stereoEnable) {
+    //    if (displayDevice != null) {
+    //      displayDevice.requestPresent([{ source: zspace.canvas, rightSource: null }]);
+    //      zspace.presenting = false;
+    //    }
+    //    return;
+    //  } else {
+    //    if (displayDevice != null) {
+    //      displayDevice.requestPresent([{ source: zspace.canvas, rightSource: zspace.frameBufferTexture }]);
+    //      zspace.presenting = true;
+    //    }
+    //  }
+    //}
+  }
+
+  function zSpaceConnectHandler(e, zspace) {
+    zspace.stylusGamepad = e.gamepad;
+  }
+
+  function zSpaceDisconnectHandler(e, zspace) {
+    zspace.stylusGamepad = null;
+  }
+
+  function onVRPresentChange(zspace) {
+    if (displayDevice != null) {
+      if (displayDevice.isPresenting) {
+        zspace.presenting = true;
+      } else {
+        zspace.presenting = false;
+      }
     }
   }
 
-  function zSpaceConnectHandler(e) {
-    //console.log("zSpaceConnectHandler: ", e.gamepad);
-    stylusGamepad = e.gamepad;
+  function onVRRequestPresent(zspace) {
+    if (displayDevice != null) {
+      displayDevice.requestPresent([{ source: zspace.canvas, rightSource: zspace.frameBufferTexture }]).then(function () {
+        zspace.presenting = true;
+      }, function () {
+        zspace.presenting = false;
+      });
+    }
   }
 
-  function zSpaceDisconnectHandler(e) {
-    //console.log("zSpaceDisconnectHandler: ", e.gamepad);
-    stylusGamepad = null;
+  function onVRExitPresent(zspace) {
+    if (displayDevice != null) {
+      if (!displayDevice.isPresenting) {
+        return;
+      }
+      displayDevice.exitPresent().then(function () {
+        zspace.presenting = false;
+      }, function () {
+        zspace.presenting = true;
+      });
+    }
+  }
+
+  zspace.prototype.setExternalTexture = function setExternalTexture(texture) {
+    this.frameBufferTexture = texture;
+    if (texture) {
+      this.useExternalTexture = true;
+    } else {
+      this.useExternalTexture = false;
+    }
   }
 
   zspace.prototype.setViewerScale = function setViewerScale(scale) {
@@ -82,9 +173,19 @@ window.ZSpace = (function () {
     this.farClip = clip;
   }
 
+  zspace.prototype.setNearClip = function setNearClip(clip) {
+    this.nearClip = clip;
+  }
+
   zspace.prototype.setCanvasOffset = function setCanvasOffset(x, y) {
-    canvasOffset[0] = x;
-    canvasOffset[1] = y;
+    this.canvasOffset[0] = x;
+    this.canvasOffset[1] = y;
+  }
+
+  zspace.prototype.vibrateStylus = function vibrateStylus(intensity, duration) {
+    if (this.stylusGamepad && this.stylusGamepad.haptics && this.stylusGamepad.haptics[0]) {
+      this.stylusGamepad.haptics[0].vibrate(intensity, duration);
+    }
   }
 
   zspace.prototype.zspaceInit = function zspaceInit() {
@@ -93,20 +194,12 @@ window.ZSpace = (function () {
         if (displays.length > 0) {
           var i;
           for (i = 0; i < displays.length; i++) {
-            if (displays[i].displayName == "ZSpace Left View") {
-              leftViewDevice = displays[i];
+            if (displays[i].displayName == "ZSpace Display") {
+              displayDevice = displays[i];
             }
-            if (displays[i].displayName == "ZSpace Right View") {
-              rightViewDevice = displays[i];
-            }
-            if (displays[i].displayName == "ZSpace Left Projection") {
-              leftProjectionDevice = displays[i];
-            }
-            if (displays[i].displayName == "ZSpace Right Projection") {
-              rightProjectionDevice = displays[i];
-            }
+
             if (displays[i].displayName == "ZSpace Stylus") {
-             stylusDevice = displays[i];
+              stylusDevice = displays[i];
             }
 
             if (displays[i].displayName == "ZSpace Stylus Buttons") {
@@ -117,70 +210,97 @@ window.ZSpace = (function () {
       });
     }
 
-    this.window.addEventListener("gamepadconnected", zSpaceConnectHandler);
-    this.window.addEventListener("gamepaddisconnected", zSpaceDisconnectHandler);
+    var me = this;
+    //window.addEventListener("gamepadconnected", function () { zSpaceConnectHandler(e, me) }, false);
+    //window.addEventListener("gamepaddisconnected", function () { zSpaceDisconnectHandler(e, me) }, false);
+    window.addEventListener('vrdisplaypresentchange', function () { onVRPresentChange(me) }, false);
+    window.addEventListener('vrdisplayactivate', function () { onVRRequestPresent(me) }, false);
+    window.addEventListener('vrdisplaydeactivate', function () { onVRExitPresent(me) }, false);
+    window.addEventListener("keydown", function (e) { keyEvent(e, me) }, false);
   }
 
   zspace.prototype.allocateBuffers = function allocateBuffers() {
-    if (this.frameBufferTexture != null) {
-      this.gl.deleteTexture(this.frameBufferTexture);
-    }
-    this.frameBufferTexture = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.frameBufferTexture);
-    this.gl.texParameteri(this.gl.TEXTURE_2D_ARRAY, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-    this.gl.texParameteri(this.gl.TEXTURE_2D_ARRAY, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-    this.gl.texImage3D(this.gl.TEXTURE_2D_ARRAY, 0, this.gl.RGB8, this.canvas.clientWidth, this.canvas.clientHeight, 2, 0, this.gl.RGB, this.gl.UNSIGNED_BYTE, null);
 
     if (this.frameBuffer == null) {
       this.frameBuffer = this.gl.createFramebuffer();
     }
-    
-    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, this.frameBuffer);
-    this.gl.framebufferTextureLayer(this.gl.DRAW_FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.frameBufferTexture, 0, 0);
 
-    if (this.frameBufferDepthTexture != null) {
-      this.gl.deleteTexture(this.frameBufferDepthTexture);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.frameBuffer);
+
+    if (this.renderBuffer != null) {
+      this.gl.deleteRenderbuffer(this.renderBuffer);
+      this.renderBuffer = null;
     }
-    this.frameBufferDepthTexture = this.gl.createTexture();
-    this.gl.bindTexture(this.gl.TEXTURE_2D_ARRAY, this.frameBufferDepthTexture);
-    this.gl.texImage3D(this.gl.TEXTURE_2D_ARRAY, 0, this.gl.DEPTH24_STENCIL8, this.canvas.clientWidth, this.canvas.clientHeight, 2, 0, this.gl.DEPTH_STENCIL, this.gl.UNSIGNED_INT_24_8, null);
-    this.gl.framebufferTextureLayer(this.gl.DRAW_FRAMEBUFFER, this.gl.DEPTH_STENCIL_ATTACHMENT, this.frameBufferDepthTexture, 0, 0);
 
-    this.gl.setStereoFramebuffer(this.frameBuffer, this.frameBufferTexture);
+    if (this.renderBuffer == null) {
+      this.renderBuffer = this.gl.createRenderbuffer();
+      this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, this.renderBuffer);
+
+      this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_STENCIL, this.canvas.clientWidth, this.canvas.clientHeight);
+      this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, this.gl.DEPTH_STENCIL_ATTACHMENT, this.gl.RENDERBUFFER, this.renderBuffer);
+
+      this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+    }
+
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, this.renderBuffer);
+
+    if (this.frameBufferTexture != null) {
+      this.gl.deleteTexture(this.frameBufferTexture);
+    }
+
+    this.frameBufferTexture = this.gl.createTexture();
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.frameBufferTexture);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.canvas.clientWidth, this.canvas.clientHeight, 0, this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+
+    this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.gl.TEXTURE_2D, this.frameBufferTexture, 0);
+
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
   }
 
   zspace.prototype.zspaceLeftView = function zspaceLeftView() {
-    if (!stereoEnable)
+    if (!this.stereoEnable)
       return;
 
-    var buffer = 0;
-    if (swapStereo)
-    {
-      buffer = 1;
+    if (this.swapStereo) {
+      if (!this.useExternalTexture) {
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.frameBuffer);
+        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, this.renderBuffer);
+      }
     }
-    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, this.frameBuffer);
-    this.gl.framebufferTextureLayer(this.gl.DRAW_FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.frameBufferTexture, 0, buffer);
-    this.gl.framebufferTextureLayer(this.gl.DRAW_FRAMEBUFFER, this.gl.DEPTH_STENCIL_ATTACHMENT, this.frameBufferDepthTexture, 0, buffer);
+    else {
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+      this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+    }
   }
 
   zspace.prototype.zspaceRightView = function zspaceRightView() {
-    if (!stereoEnable)
+    if (!this.stereoEnable)
       return;
 
-    var buffer = 1;
-    if (swapStereo) {
-      buffer = 0;
+    if (this.swapStereo) {
+      this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+      this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
     }
-    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, this.frameBuffer);
-    this.gl.framebufferTextureLayer(this.gl.DRAW_FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0, this.frameBufferTexture, 0, buffer);
-    this.gl.framebufferTextureLayer(this.gl.DRAW_FRAMEBUFFER, this.gl.DEPTH_STENCIL_ATTACHMENT, this.frameBufferDepthTexture, 0, buffer);
+    else {
+      if (!this.useExternalTexture) {
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.frameBuffer);
+        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, this.renderBuffer);
+      }
+    }
   }
 
   zspace.prototype.zspaceFrameEnd = function zspaceFrameEnd() {
-    if (!stereoEnable)
+    if (!this.stereoEnable)
       return;
 
-    this.gl.bindFramebuffer(this.gl.DRAW_FRAMEBUFFER, null);
+    this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
+    this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+    if (this.presenting) {
+      displayDevice.submitFrame();
+    }
   }
 
   zspace.prototype.makeProjection = function makeProjection(projection, up, down, left, right) {
@@ -208,16 +328,11 @@ window.ZSpace = (function () {
   }
 
   zspace.prototype.zspaceUpdate = function zspaceUpdate() {
-    if (!stereoEnable) {
-      this.gl.setStereoFramebuffer(null, null);
-      return;
-    } else {
-      this.gl.setStereoFramebuffer(this.frameBuffer, this.frameBufferTexture);
-    }
 
     var displaySize = [0.521, 0.293];
     var displayResolution = [1920, 1080];
     var displayScaleFactor = [0.0, 0.0];
+    var IPD = 0.06;
     displayScaleFactor[0] = displaySize[0] / displayResolution[0];
     displayScaleFactor[1] = displaySize[1] / displayResolution[1];
 
@@ -225,13 +340,22 @@ window.ZSpace = (function () {
         this.currentHeight != this.canvas.clientHeight) {
       this.currentWidth = this.canvas.clientWidth;
       this.currentHeight = this.canvas.clientHeight;
-      this.allocateBuffers();
+      if (!this.useExternalTexture) {
+        this.allocateBuffers();
+      }
     }
 
-    var canvasPosition = getPosition(this.canvas);
+    if (displayDevice != null && displayDevice.isPresenting) {
+      displayDevice.requestPresent([{ source: this.canvas, rightSource: this.frameBufferTexture }]);
+    }
+
+    // Find the offset of the canvas from the browser window
+    var canvasPosition = getPosition(this);
     var canvasWidth = this.canvas.clientWidth * displayScaleFactor[0] * this.viewerScale;
     var canvasHeight = this.canvas.clientHeight * displayScaleFactor[1] * this.viewerScale;
 
+    // Calculate the offset to use for moving the WebVR data from screen relative
+    // to window relative.
     var displayCenterX = displayResolution[0] * 0.5;
     var displayCenterY = displayResolution[1] * 0.5;
     var viewportCenterX = canvasPosition.x + (this.canvas.clientWidth * 0.5);
@@ -244,121 +368,135 @@ window.ZSpace = (function () {
     mat4.identity(offsetTranslation);
     mat4.translate(offsetTranslation, offsetTranslation, viewportShift);
 
-	var viewScale = mat4.create();
-	mat4.identity(viewScale);
-	var scale = vec3.create();
-	scale[0] = this.viewerScale; scale[1] = this.viewerScale; scale[2] = this.viewerScale; 
-	mat4.scale(viewScale, viewScale, scale);
-	
-    if (leftViewDevice) {
-      var leftViewPose = leftViewDevice.getPose();
-      if (leftViewPose && leftViewPose.orientation && leftViewPose.position) {
-        var newPosition = vec3.create();
-        vec3.transformMat4(newPosition, leftViewPose.position, offsetTranslation);
-		vec3.transformMat4(newPosition, newPosition, viewScale);
-        mat4.fromRotationTranslation(this.leftViewMatrix, leftViewPose.orientation, newPosition);
-      }
+    // Crete the scale matrix to use for viewer scale
+    var viewScale = mat4.create();
+    mat4.identity(viewScale);
+    var scale = vec3.create();
+    scale[0] = this.viewerScale; scale[1] = this.viewerScale; scale[2] = this.viewerScale;
+    mat4.scale(viewScale, viewScale, scale);
+
+    var frameData = new VRFrameData();
+    if (displayDevice) {
+      // Get the left view matrix and shift it to compensate for the window shift and viewer scale
+      var eyePoseMatrix = mat4.create();
+      var newPosition = vec3.create();
+      var currentPosition = vec3.create();
+      displayDevice.getFrameData(frameData);
+      mat4.set(this.leftViewMatrix,
+               frameData.leftViewMatrix[0], frameData.leftViewMatrix[1], frameData.leftViewMatrix[2], frameData.leftViewMatrix[3],
+               frameData.leftViewMatrix[4], frameData.leftViewMatrix[5], frameData.leftViewMatrix[6], frameData.leftViewMatrix[7],
+               frameData.leftViewMatrix[8], frameData.leftViewMatrix[9], frameData.leftViewMatrix[10], frameData.leftViewMatrix[11],
+               frameData.leftViewMatrix[12], frameData.leftViewMatrix[13], frameData.leftViewMatrix[14], frameData.leftViewMatrix[15]);
+      currentPosition[0] = this.leftViewMatrix[12];
+      currentPosition[1] = this.leftViewMatrix[13];
+      currentPosition[2] = this.leftViewMatrix[14];
+      vec3.transformMat4(newPosition, currentPosition, offsetTranslation);
+      vec3.transformMat4(newPosition, newPosition, viewScale);
+      this.leftViewMatrix[12] = newPosition[0];
+      this.leftViewMatrix[13] = newPosition[1];
+      this.leftViewMatrix[14] = newPosition[2];
+
+      // Get the right view matrix and shift it to compensate for the window shift and viewer scale
+      mat4.set(this.rightViewMatrix,
+         frameData.rightViewMatrix[0], frameData.rightViewMatrix[1], frameData.rightViewMatrix[2], frameData.rightViewMatrix[3],
+         frameData.rightViewMatrix[4], frameData.rightViewMatrix[5], frameData.rightViewMatrix[6], frameData.rightViewMatrix[7],
+         frameData.rightViewMatrix[8], frameData.rightViewMatrix[9], frameData.rightViewMatrix[10], frameData.rightViewMatrix[11],
+         frameData.rightViewMatrix[12], frameData.rightViewMatrix[13], frameData.rightViewMatrix[14], frameData.rightViewMatrix[15]);
+      currentPosition[0] = this.rightViewMatrix[12];
+      currentPosition[1] = this.rightViewMatrix[13];
+      currentPosition[2] = this.rightViewMatrix[14];
+      vec3.transformMat4(newPosition, currentPosition, offsetTranslation);
+      vec3.transformMat4(newPosition, newPosition, viewScale);
+      this.rightViewMatrix[12] = newPosition[0];
+      this.rightViewMatrix[13] = newPosition[1];
+      this.rightViewMatrix[14] = newPosition[2];
+
+      offsetTranslation[12] = -offsetTranslation[12];
+      offsetTranslation[13] = -offsetTranslation[13];
+
+      // Use the display space pose in the frame data to calculate the correct window based projections.
+      var leftEye = vec3.create();
+      var leftEyeDisplay = vec3.create();
+      var centerEyeDisplay = vec3.create();
+      
+      centerEyeDisplay[0] = frameData.pose.position[0]; centerEyeDisplay[1] = frameData.pose.position[1];  centerEyeDisplay[2] = frameData.pose.position[2]; 
+      mat4.fromRotationTranslation(eyePoseMatrix, frameData.pose.orientation, frameData.pose.position);
+      var xAxis = vec3.create();
+      xAxis[0] = eyePoseMatrix[0]; xAxis[1] = eyePoseMatrix[1]; xAxis[2] = eyePoseMatrix[2];
+      vec3.scaleAndAdd(leftEyeDisplay, centerEyeDisplay, xAxis ,- IPD / 2.0);
+
+      vec3.transformMat4(leftEye, leftEyeDisplay, offsetTranslation);
+      vec3.transformMat4(leftEye, leftEye, viewScale);
+
+      var up = Math.atan((canvasHeight * 0.5 - leftEye[1]) / leftEye[2]);
+      var down = Math.atan((canvasHeight * 0.5 + leftEye[1]) / leftEye[2]);
+      var left = Math.atan((canvasWidth * 0.5 + leftEye[0]) / leftEye[2]);
+      var right = Math.atan((canvasWidth * 0.5 - leftEye[0]) / leftEye[2]);
+      this.makeProjection(this.leftProjectionMatrix, up, down, left, right);
+
+      var rightEye = vec3.create();
+      var rightEyeDisplay = vec3.create();
+      vec3.scaleAndAdd(rightEyeDisplay, centerEyeDisplay, xAxis, IPD / 2.0);
+
+      vec3.transformMat4(rightEye, rightEyeDisplay, offsetTranslation);
+      vec3.transformMat4(rightEye, rightEye, viewScale);
+
+      var up = Math.atan((canvasHeight * 0.5 - rightEye[1]) / rightEye[2]);
+      var down = Math.atan((canvasHeight * 0.5 + rightEye[1]) / rightEye[2]);
+      var left = Math.atan((canvasWidth * 0.5 + rightEye[0]) / rightEye[2]);
+      var right = Math.atan((canvasWidth * 0.5 - rightEye[0]) / rightEye[2]);
+      this.makeProjection(this.rightProjectionMatrix, up, down, left, right);
     }
-    else {
-      mat4.identity(this.leftViewMatrix);
-    }
 
-    if (rightViewDevice) {
-      var rightViewPose = rightViewDevice.getPose();
-      if (rightViewPose && rightViewPose.orientation && rightViewPose.position) {
-        var newPosition = vec3.create();
-        vec3.transformMat4(newPosition, rightViewPose.position, offsetTranslation);
-		vec3.transformMat4(newPosition, newPosition, viewScale);
-        mat4.fromRotationTranslation(this.rightViewMatrix, rightViewPose.orientation, newPosition);
-      }
-    }
-    else {
-      mat4.identity(this.rightViewMatrix);
-    }
-
-    offsetTranslation[12] = -offsetTranslation[12];
-    offsetTranslation[13] = -offsetTranslation[13];
-	
-
-
-    if (leftProjectionDevice) {
-      var leftProjectionPose = leftProjectionDevice.getPose();
-      if (leftProjectionPose && leftProjectionPose.orientation && leftProjectionPose.position) {
-
-        var leftEye = vec3.create();
-        vec3.transformMat4(leftEye, leftProjectionPose.position, offsetTranslation);
-		vec3.transformMat4(leftEye, leftEye, viewScale);
-
-        var up = Math.atan((canvasHeight * 0.5 - leftEye[1]) / leftEye[2]);
-        var down = Math.atan((canvasHeight * 0.5 + leftEye[1]) / leftEye[2]);
-        var left = Math.atan((canvasWidth * 0.5 + leftEye[0]) / leftEye[2]);
-        var right = Math.atan((canvasWidth * 0.5 - leftEye[0]) / leftEye[2]);
-        this.makeProjection(this.leftProjectionMatrix, up, down, left, right);
-      } else {
-        mat4.frustum(this.leftProjectionMatrix, -0.1, 0.1, -0.1, 0.1, 0.1, 1000.0);
-      }
-    }
-
-    if (rightProjectionDevice) {
-      var rightProjectionPose = rightProjectionDevice.getPose();
-      if (rightProjectionPose && rightProjectionPose.orientation && rightProjectionPose.position) {
-        var rightEye = vec3.create();
-        vec3.transformMat4(rightEye, rightProjectionPose.position, offsetTranslation);
-		vec3.transformMat4(rightEye, rightEye, viewScale);
-		
-        var up = Math.atan((canvasHeight * 0.5 - rightEye[1]) / rightEye[2]);
-        var down = Math.atan((canvasHeight * 0.5 + rightEye[1]) / rightEye[2]);
-        var left = Math.atan((canvasWidth * 0.5 + rightEye[0]) / rightEye[2]);
-        var right = Math.atan((canvasWidth * 0.5 - rightEye[0]) / rightEye[2]);
-        this.makeProjection(this.rightProjectionMatrix, up, down, left, right);
-      } else {
-        mat4.frustum(this.rightProjectionMatrix, -0.1, 0.1, -0.1, 0.1, 0.1, 1000.0);
-      }
-    }
+    // TODO: Enable this gamepad processing once the gamepad bugs are resolved on the 300.
 
     //var gamepads = navigator.getGamepads();
     //for (var i = 0; i < gamepads.length; i++) {
     //  if (gamepads[i]) {
     //    if (gamepads[i].id == "zSpace Stylus Gamepad") {
-    //      stylusGamepad = gamepads[i];
+    //      this.stylusGamepad = gamepads[i];
     //    }
     //  }
     //}
 
-    //if (stylusGamepad) {
-    //  var stylusPose = stylusGamepad.pose;
-    //  console.log(stylusPose.position);
-    //  var newPosition = vec3.create();
-    //  vec3.transformMat4(newPosition, stylusPose.position, offsetTranslation);
-    //  mat4.fromRotationTranslation(this.stylusCameraMatrix, stylusPose.orientation, newPosition);
+    //if (this.stylusGamepad) {
+    //  var stylusPose = this.stylusGamepad.pose;
+    //  if (stylusPose != null) {
+    //    var newPosition = vec3.create();
+    //    vec3.transformMat4(newPosition, stylusPose.position, offsetTranslation);
+    //    vec3.transformMat4(newPosition, newPosition, viewScale);
+    //    mat4.fromRotationTranslation(this.stylusCameraMatrix, stylusPose.orientation, newPosition);
 
-    //  this.buttonPressed[0] = stylusGamepad.buttons[0].pressed ? 1.0 : 0.0;
-    //  this.buttonPressed[1] = stylusGamepad.buttons[1].pressed ? 1.0 : 0.0;
-    //  this.buttonPressed[2] = stylusGamepad.buttons[2].pressed ? 1.0 : 0.0;
+    //    this.buttonPressed[0] = stylusGamepad.buttons[0].pressed;
+    //    this.buttonPressed[1] = stylusGamepad.buttons[1].pressed;
+    //    this.buttonPressed[2] = stylusGamepad.buttons[2].pressed;
+    //  }
     //}
 
+    // Get the stylus camera pose from the stylus device and compensate for window shift and viewer scale
     if (stylusDevice) {
-      var stylusPose = stylusDevice.getPose();
+      stylusDevice.getFrameData(frameData);
+      var stylusPose = frameData.pose;
       if (stylusPose && stylusPose.orientation && stylusPose.position) {
         var newPosition = vec3.create();
         vec3.transformMat4(newPosition, stylusPose.position, offsetTranslation);
-		    vec3.transformMat4(newPosition, newPosition, viewScale);
+        vec3.transformMat4(newPosition, newPosition, viewScale);
         mat4.fromRotationTranslation(this.stylusCameraMatrix, stylusPose.orientation, newPosition);
       }
-    }
-    else {
+    } else {
       mat4.identity(this.stylusCameraMatrix);
     }
 
+    // Get the stylus button states from another stylus device
     if (stylusButtonsDevice) {
-      var stylusButtonsState = stylusButtonsDevice.getPose();
+      stylusButtonsDevice.getFrameData(frameData);
+      var stylusButtonsState = frameData.pose;
       if (stylusButtonsState && stylusButtonsState.position) {
         this.buttonPressed[0] = stylusButtonsState.position[0];
         this.buttonPressed[1] = stylusButtonsState.position[1];
         this.buttonPressed[2] = stylusButtonsState.position[2];
       }
-    }
-    else {
+    } else {
       this.buttonPressed[0] = 0;
       this.buttonPressed[1] = 0;
       this.buttonPressed[2] = 0;
