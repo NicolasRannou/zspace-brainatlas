@@ -110,7 +110,9 @@ function onWindowResize(){
   camera.aspect = container.offsetWidth / container.offsetHeight;
   camera.updateProjectionMatrix();
   
-  effect.setSize(container.offsetWidth, container.offsetHeight);
+  if(zSpaceEffect) {
+    zSpaceEffect.setSize(container.offsetWidth, container.offsetHeight);
+  }
 }
 
 window.addEventListener('resize', onWindowResize);
