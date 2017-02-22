@@ -14,7 +14,7 @@ THREE.ZSpaceEffect = function ( renderer ) {
 	
 	var zspace = new ZSpace(renderer.context, renderer.context.canvas);
 	zspace.zspaceInit();
-	zspace.setCanvasOffset(310, 0);
+	//zspace.setCanvasOffset(310, 0);
 
 	var leftViewMatrix = new THREE.Matrix4();
 	var rightViewMatrix = new THREE.Matrix4();
